@@ -217,7 +217,6 @@ def admin_page(request: Request, month: str | None = None):
     missing = [name for name in cfg["staff_list"] if name not in submitted]
     error = request.query_params.get("error", "")
     config_error = request.query_params.get("config_error", "")
-    restore_status = request.query_params.get("restore", "")
     history = list_config_history(30)
     csv_url = f"/admin/export.csv?month={month_value}" if month_value else ""
     return templates.TemplateResponse(
@@ -235,7 +234,6 @@ def admin_page(request: Request, month: str | None = None):
             "error": error,
             "config": cfg,
             "config_error": config_error,
-            "restore_status": restore_status,
             "history": history,
             "month_choices": month_choices,
             "csv_url": csv_url,
@@ -268,7 +266,7 @@ def export_backup():
 
 
 @app.post("/admin/restore")
-def restore_backup(file: UploadFile = File(...), month: str = Form("")):
+def restore_backup(file: UploadFile = File(...)):
     try:
         raw = file.file.read()
         payload = json.loads(raw.decode("utf-8"))
@@ -277,8 +275,21 @@ def restore_backup(file: UploadFile = File(...), month: str = Form("")):
             raise ValueError("invalid payload")
         restore_all(data)
     except Exception:
-        return RedirectResponse(url=f"/admin?month={month}&restore=fail", status_code=303)
-    return RedirectResponse(url=f"/admin?month={month}&restore=ok", status_code=303)
+        return RedirectResponse(url="/backup?restore=fail", status_code=303)
+    return RedirectResponse(url="/backup?restore=ok", status_code=303)
+
+
+@app.get("/backup", response_class=HTMLResponse)
+def backup_page(request: Request):
+    restore_status = request.query_params.get("restore", "")
+    return templates.TemplateResponse(
+        "backup.html",
+        {
+            "request": request,
+            "app_name": APP_NAME,
+            "restore_status": restore_status,
+        },
+    )
 
 
 @app.post("/admin/generate")
