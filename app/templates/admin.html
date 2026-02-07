@@ -28,6 +28,29 @@
 </section>
 
 <section class="card">
+  <h2>バックアップ</h2>
+  <p class="hint">Web上の編集内容に備えて、いつでも復元できるようにしてください。</p>
+  <div class="actions">
+    <a class="button" href="/admin/backup.json">バックアップをダウンロード</a>
+  </div>
+  <form method="post" action="/admin/restore" enctype="multipart/form-data" class="form">
+    <input type="hidden" name="month" value="{{ month }}" />
+    <label>バックアップから復元（JSON）
+      <input type="file" name="file" accept="application/json" required />
+    </label>
+    <p class="warning">復元すると、現在のデータは上書きされます。</p>
+    <div class="actions">
+      <button class="button" type="submit">バックアップを復元</button>
+    </div>
+  </form>
+  {% if restore_status == "ok" %}
+    <p class="success">バックアップを復元しました。</p>
+  {% elif restore_status == "fail" %}
+    <p class="warning">復元に失敗しました。JSONファイルを確認してください。</p>
+  {% endif %}
+</section>
+
+<section class="card">
   <h2>希望一覧（{{ month }}）</h2>
   {% if requests %}
     <ul>

@@ -265,3 +265,102 @@ def get_latest_schedule(month: str) -> Optional[Dict[str, Any]]:
     ).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def export_all() -> Dict[str, Any]:
+    conn = get_conn()
+    data = {
+        "requests": [
+            dict(r)
+            for r in conn.execute(
+                "SELECT id, month, doctor, request_text, created_at FROM requests ORDER BY id ASC"
+            ).fetchall()
+        ],
+        "schedules": [
+            dict(r)
+            for r in conn.execute(
+                "SELECT id, month, status, table_text, counts_text, change_log, created_at FROM schedules ORDER BY id ASC"
+            ).fetchall()
+        ],
+        "travel": [
+            dict(r)
+            for r in conn.execute(
+                "SELECT id, month, doctor, days, dates_text, created_at FROM travel ORDER BY id ASC"
+            ).fetchall()
+        ],
+        "config": [
+            dict(r)
+            for r in conn.execute(
+                "SELECT key, value FROM config ORDER BY key ASC"
+            ).fetchall()
+        ],
+        "config_history": [
+            dict(r)
+            for r in conn.execute(
+                "SELECT id, created_at, editor, staff_list, base_rules, individual_rules, additional_rules "
+                "FROM config_history ORDER BY id ASC"
+            ).fetchall()
+        ],
+    }
+    conn.close()
+    return data
+
+
+def restore_all(data: Dict[str, Any]) -> None:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM requests")
+    cur.execute("DELETE FROM schedules")
+    cur.execute("DELETE FROM travel")
+    cur.execute("DELETE FROM config")
+    cur.execute("DELETE FROM config_history")
+
+    for r in data.get("requests", []):
+        cur.execute(
+            "INSERT INTO requests (month, doctor, request_text, created_at) VALUES (?, ?, ?, ?)",
+            (r.get("month", ""), r.get("doctor", ""), r.get("request_text", ""), r.get("created_at", "")),
+        )
+    for s in data.get("schedules", []):
+        cur.execute(
+            "INSERT INTO schedules (month, status, table_text, counts_text, change_log, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                s.get("month", ""),
+                s.get("status", "draft"),
+                s.get("table_text", ""),
+                s.get("counts_text", ""),
+                s.get("change_log", ""),
+                s.get("created_at", ""),
+            ),
+        )
+    for t in data.get("travel", []):
+        cur.execute(
+            "INSERT INTO travel (month, doctor, days, dates_text, created_at) VALUES (?, ?, ?, ?, ?)",
+            (
+                t.get("month", ""),
+                t.get("doctor", ""),
+                t.get("days"),
+                t.get("dates_text"),
+                t.get("created_at", ""),
+            ),
+        )
+    for c in data.get("config", []):
+        cur.execute(
+            "INSERT INTO config (key, value) VALUES (?, ?)",
+            (c.get("key", ""), c.get("value", "")),
+        )
+    for h in data.get("config_history", []):
+        cur.execute(
+            "INSERT INTO config_history (created_at, editor, staff_list, base_rules, individual_rules, additional_rules) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                h.get("created_at", ""),
+                h.get("editor", ""),
+                h.get("staff_list", ""),
+                h.get("base_rules", ""),
+                h.get("individual_rules", ""),
+                h.get("additional_rules", ""),
+            ),
+        )
+    conn.commit()
+    conn.close()

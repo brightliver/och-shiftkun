@@ -1,7 +1,8 @@
 from __future__ import annotations
 from datetime import datetime
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+import json
+from fastapi import FastAPI, Form, Request, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -22,6 +23,8 @@ from .db import (
     upsert_schedule,
     get_schedule,
     get_latest_schedule,
+    export_all,
+    restore_all,
 )
 from .scheduler import generate_schedule, render_table, render_counts, counts_from_table
 
@@ -214,6 +217,7 @@ def admin_page(request: Request, month: str | None = None):
     missing = [name for name in cfg["staff_list"] if name not in submitted]
     error = request.query_params.get("error", "")
     config_error = request.query_params.get("config_error", "")
+    restore_status = request.query_params.get("restore", "")
     history = list_config_history(30)
     csv_url = f"/admin/export.csv?month={month_value}" if month_value else ""
     return templates.TemplateResponse(
@@ -231,6 +235,7 @@ def admin_page(request: Request, month: str | None = None):
             "error": error,
             "config": cfg,
             "config_error": config_error,
+            "restore_status": restore_status,
             "history": history,
             "month_choices": month_choices,
             "csv_url": csv_url,
@@ -247,6 +252,33 @@ def export_requests_csv(month: str):
         lines.append(f"{month},{r['doctor']},{text}")
     content = "\n".join(lines)
     return HTMLResponse(content=content, media_type="text/csv; charset=utf-8")
+
+
+@app.get("/admin/backup.json")
+def export_backup():
+    payload = {
+        "version": 1,
+        "exported_at": now_str(),
+        "data": export_all(),
+    }
+    content = json.dumps(payload, ensure_ascii=False, indent=2)
+    filename = f"och-shiftkun-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+    headers = {"Content-Disposition": f"attachment; filename={filename}"}
+    return Response(content=content, media_type="application/json; charset=utf-8", headers=headers)
+
+
+@app.post("/admin/restore")
+def restore_backup(file: UploadFile = File(...), month: str = Form("")):
+    try:
+        raw = file.file.read()
+        payload = json.loads(raw.decode("utf-8"))
+        data = payload.get("data", payload)
+        if not isinstance(data, dict):
+            raise ValueError("invalid payload")
+        restore_all(data)
+    except Exception:
+        return RedirectResponse(url=f"/admin?month={month}&restore=fail", status_code=303)
+    return RedirectResponse(url=f"/admin?month={month}&restore=ok", status_code=303)
 
 
 @app.post("/admin/generate")
