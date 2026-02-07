@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h1>勤務表作成者用</h1>
+  <form method="get" class="form">
+    <label>対象月
+      <select name="month" required>
+        <option value="">選択してください</option>
+        {% for m in month_choices %}
+          <option value="{{ m }}" {% if month == m %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="button" type="submit">読み込み</button>
+  </form>
+</section>
+
+{% if month %}
+<section class="card">
+  <h2>勤務表作成者のこれから手順</h2>
+  <ol>
+    <li>希望が揃っているか確認</li>
+    <li>「LLM用プロンプトをコピー」を押してLLMに貼る</li>
+    <li>LLM上で勤務表を必要に応じて修正する</li>
+    <li>LLMの最終版を「完成版の保存」に貼り付ける</li>
+  </ol>
+  <p class="hint">このプロンプトは<strong>LLMに貼るだけで勤務表が作成できます</strong>。</p>
+</section>
+
+<section class="card">
+  <h2>希望一覧（{{ month }}）</h2>
+  {% if requests %}
+    <ul>
+      {% for req in requests %}
+        <li><strong>{{ req.doctor }}</strong>：{{ req.request_text }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>まだ希望が登録されていません。</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>提出状況</h2>
+  {% if missing %}
+    <p class="warning">未提出：{{ "、".join(missing) }}</p>
+    <p class="hint">下書き保存はOK、完成版保存は全員提出後に可能です。</p>
+  {% else %}
+    <p class="success">全員分の希望が揃っています。</p>
+  {% endif %}
+  {% if error == "missing" %}
+    <p class="warning">未提出者がいるため完成版の保存はできませんでした。</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>LLM用プロンプト</h2>
+  <p class="hint">この内容をLLMに貼り付けて勤務表を作成します。</p>
+  <textarea id="llm_prompt" rows="18" readonly>{{ prompt }}</textarea>
+  {% if month %}
+  <div class="actions">
+    <button class="button" type="button" onclick="copyPrompt()">LLM用プロンプトをコピー</button>
+    <span id="copy_status" class="hint"></span>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>完成版の保存</h2>
+  <form method="post" action="/admin/save" class="form">
+    <input type="hidden" name="month" value="{{ month }}" />
+    <label>勤務表（表形式）
+      <textarea name="table_text" rows="10" placeholder="ここに完成版の表を貼り付け">{% if draft %}{{ draft.table_text }}{% endif %}</textarea>
+    </label>
+    <label>勤務帯別回数表
+      <textarea name="counts_text" rows="8" placeholder="（空欄なら勤務表から自動集計）">{% if draft %}{{ draft.counts_text }}{% endif %}</textarea>
+    </label>
+    <label>変更ログ（任意）
+      <textarea name="change_log" rows="6" placeholder="例：3/10 準夜 山口 追加">{% if draft %}{{ draft.change_log }}{% endif %}</textarea>
+    </label>
+    <div class="actions">
+      <button class="button" type="submit" name="save_type" value="draft">下書き保存</button>
+      <button class="button" type="submit" name="save_type" value="final" {% if missing %}disabled{% endif %}>完成版として保存</button>
+    </div>
+  </form>
+  {% if final %}
+    <p class="hint">完成版 最終更新：{{ final.created_at }}</p>
+  {% endif %}
+  {% if draft %}
+    <p class="hint">下書き 最終更新：{{ draft.created_at }}</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>ルール・スタッフ編集</h2>
+  {% if config_error == "staff_empty" %}
+    <p class="warning">スタッフ一覧が空です。</p>
+  {% elif config_error == "staff_dup" %}
+    <p class="warning">スタッフ一覧に重複があります。</p>
+  {% elif config_error == "base_empty" %}
+    <p class="warning">基本ルールが空です。</p>
+  {% elif config_error == "indiv_empty" %}
+    <p class="warning">個別制約が空です。</p>
+  {% elif config_error == "add_empty" %}
+    <p class="warning">追加ルールが空です。</p>
+  {% elif config_error == "editor_empty" %}
+    <p class="warning">編集者名を入力してください。</p>
+  {% endif %}
+  <form method="post" action="/admin/config" class="form">
+    <input type="hidden" name="month" value="{{ month }}" />
+    <label>編集者名（履歴に記録）
+      <input type="text" name="editor" placeholder="例：岡" required />
+    </label>
+    <label>スタッフ一覧（カンマ区切り）
+      <textarea id="staff_list" name="staff_list" rows="2">{{ ",".join(config.staff_list) }}</textarea>
+    </label>
+    <div class="actions">
+      <button class="button small" type="button" onclick="fillTemplate('base_rules', '早番/日勤/準夜/夜勤の4枠\\n平日：早番1、日勤1、準夜1、夜勤1\\n土日祝：早番1、準夜1、夜勤1（日勤なし）\\n準夜は連続2回まで、夜勤は連続2回まで\\n準夜の翌日は準夜・夜勤・休みのみ\\n夜勤の翌日は夜勤・休みのみ\\n連勤は5日まで\\n準夜＋夜勤の合計は各人10回まで\\n欠員許容：早番は不可、準夜は許容、夜勤は極力埋める\\n表記は『早番/日勤/準夜/夜勤』に統一')">基本ルールのテンプレ挿入</button>
+      <button class="button small" type="button" onclick="fillTemplate('individual_rules', '岡：早番/日勤のみ、土日休み、週3回まで\\n中山：早番/日勤のみ、週3回まで\\n斉藤：指定日の夜勤のみ')">個別制約のテンプレ挿入</button>
+      <button class="button small" type="button" onclick="fillTemplate('additional_rules', '同一勤務帯は原則2連続まで（3連続は事前確認）\\n希望・制約がない範囲で勤務帯の割合を均等化')">追加ルールのテンプレ挿入</button>
+    </div>
+    <label>基本ルール（1行1項目）
+      <textarea id="base_rules" name="base_rules" rows="8">{{ "\n".join(config.base_rules) }}</textarea>
+    </label>
+    <label>個別制約（1行1項目）
+      <textarea id="individual_rules" name="individual_rules" rows="6">{{ "\n".join(config.individual_rules) }}</textarea>
+    </label>
+    <label>追加ルール（1行1項目）
+      <textarea id="additional_rules" name="additional_rules" rows="4">{{ "\n".join(config.additional_rules) }}</textarea>
+    </label>
+    <button class="button" type="submit">ルールを保存</button>
+  </form>
+  <p class="hint">保存後、Codex用プロンプトに自動反映されます。</p>
+</section>
+
+<section class="card">
+  <h2>編集履歴（直近30件）</h2>
+  {% if history %}
+    <ul>
+      {% for h in history %}
+        <li>
+          <strong>{{ h.created_at }}</strong>（{{ h.editor }}）
+          <div class="history-block">
+            スタッフ：{{ h.staff_list }}
+            <br />
+            基本：{{ h.base_rules.replace("\n", " / ") }}
+            <br />
+            個別：{{ h.individual_rules.replace("\n", " / ") }}
+            <br />
+            追加：{{ h.additional_rules.replace("\n", " / ") }}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>まだ履歴がありません。</p>
+  {% endif %}
+</section>
+
+{% endif %}
+{% endblock %}

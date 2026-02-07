@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h1>完成版（共有用）</h1>
+  <form method="get" class="form">
+    <label>対象月
+      <select name="month" required>
+        <option value="">選択してください</option>
+        {% for m in month_choices %}
+          <option value="{{ m }}" {% if month == m %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="button" type="submit">表示</button>
+  </form>
+</section>
+
+{% if month %}
+<section class="card">
+  <h2>勤務表（{{ month }}）</h2>
+  {% if schedule %}
+    <pre class="preblock">{{ schedule.table_text }}</pre>
+  {% else %}
+    <p>まだ完成版が保存されていません。</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>勤務帯別回数</h2>
+  {% if schedule %}
+    <pre class="preblock">{{ schedule.counts_text }}</pre>
+  {% else %}
+    <p>まだ回数表が保存されていません。</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>勤務日数（出張込み）</h2>
+  {% if counts_with_travel %}
+    <table class="simple-table">
+      <thead>
+        <tr>
+          <th>医師</th>
+          <th>勤務合計</th>
+          <th>出張日数</th>
+          <th>合計（出張込み）</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in counts_with_travel %}
+          <tr>
+            <td>{{ row.doctor }}</td>
+            <td>{{ row.total }}</td>
+            <td>{{ row.travel }}</td>
+            <td>{{ row.total_with_travel }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="hint">回数表が「医師,早番,日勤,準夜,夜勤,合計」形式のときに自動計算されます。</p>
+  {% else %}
+    <p>回数表の形式が一致しないため計算できません。</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>変更ログ</h2>
+  {% if schedule and schedule.change_log %}
+    <pre class="preblock">{{ schedule.change_log }}</pre>
+  {% else %}
+    <p>変更ログはありません。</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

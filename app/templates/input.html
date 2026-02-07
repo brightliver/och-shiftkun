@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h1>希望入力</h1>
+  <form method="post" class="form">
+    <input id="month_input" type="hidden" name="month" value="{{ month }}" />
+    <label>氏名
+      <select id="doctor_select" name="doctor" required>
+        <option value="">選択してください</option>
+        {% for name in staff_list %}
+          <option value="{{ name }}" {% if doctor == name %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>対象月（翌月から3ヶ月）
+      <select id="month_select" name="month_select" required onchange="setMonth(this.value)">
+        <option value="">選択してください</option>
+        {% for m in month_choices %}
+          <option value="{{ m }}" {% if month == m %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>希望内容（自由記載）
+      <textarea id="request_text" name="request_text" rows="6" placeholder="例：4/4 早番 or 準夜 or 休み" required></textarea>
+    </label>
+    <p class="hint">記載形式の例：日付＋希望（複数希望は「or」で区切り）。月は省略OK。記号でもOK（○=早番、ー=日勤、☆=準夜、●=夜勤、×=休み）。</p>
+    <div class="hint">
+      例）4月4日 早番/準夜/休み<br />
+      4/10 出張<br />
+      4/12 年休<br />
+      4/18 休み<br />
+      4/20 早番のみ<br />
+      4/22 日勤 or 休み
+    </div>
+    <label>備考（自由記載）
+      <textarea name="request_note" rows="3" placeholder="例：＊月＊日はICU当直"></textarea>
+    </label>
+    <button class="button" type="submit">送信</button>
+  </form>
+  <p class="hint">送信後、同じ月の希望を追加で入力してもOKです。</p>
+</section>
+
+{% if month and doctor %}
+<section class="card">
+  <h2>あなたの提出内容（{{ month }}）</h2>
+  {% if my_requests %}
+    <ul>
+      {% for req in my_requests %}
+        <li>
+          {{ req.request_text }}
+          <form method="post" action="/input/delete" class="inline-form">
+            <input type="hidden" name="request_id" value="{{ req.id }}" />
+            <input type="hidden" name="month" value="{{ month }}" />
+            <input type="hidden" name="doctor" value="{{ doctor }}" />
+            <button class="button small" type="submit">削除</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="hint">修正したい場合は、該当の行を削除してから新しい希望を送信してください。</p>
+  {% else %}
+    <p>まだ提出内容がありません。</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}
